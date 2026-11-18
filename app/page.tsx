@@ -1,645 +1,657 @@
+
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-/* ================= types & data ================= */
-type Product = {
-  id: string;
+type Page = "home" | "detail" | "cart" | "favorite" | "profile";
+type Size = "S" | "M" | "L";
+
+type Drink = {
+  id: number;
   name: string;
+  eng: string;
   price: number;
-  color: string;
-  deco: string;
-  desc: string;
+  category: string;
+  image: string;
+  description: string;
 };
+
 type CartItem = {
-  key: string;
-  productId: string;
-  size: string;
+  id: string;
+  drink: Drink;
+  size: Size;
   qty: number;
 };
-type ScreenName = "splash" | "home" | "menu" | "detail" | "cart" | "profile" | "success";
-type Screen = { name: ScreenName; productId?: string };
-type Order = { no: string; total: number; count: number; time: string };
 
-const PINK = "#d63a7a";
-const PINK_DARK = "#b82c66";
-const PINK_LIGHT = "#fde7ef";
-
-const SIZES = [
-  { key: "S", label: "(เล็ก)", add: 0 },
-  { key: "M", label: "(กลาง)", add: 10 },
-  { key: "L", label: "(ใหญ่)", add: 20 },
+const drinks: Drink[] = [
+  {
+    id: 1,
+    name: "สตรอว์เบอร์รีปั่น",
+    eng: "Strawberry Smoothie",
+    price: 45,
+    category: "ผลไม้",
+    image: "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=700",
+    description: "สตรอว์เบอร์รีสด ปั่นเนื้อเนียน หวานอมเปรี้ยว สดชื่นทุกแก้ว"
+  },
+  {
+    id: 2,
+    name: "มะม่วงปั่น",
+    eng: "Mango Smoothie",
+    price: 55,
+    category: "ผลไม้",
+    image: "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?w=700",
+    description: "มะม่วงหอมหวาน ปั่นสดใหม่ทุกวัน"
+  },
+  {
+    id: 3,
+    name: "ส้มปั่น",
+    eng: "Orange Smoothie",
+    price: 45,
+    category: "ผลไม้",
+    image: "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=700",
+    description: "ส้มสด รสชาติเปรี้ยวหวาน สดชื่น"
+  },
+  {
+    id: 4,
+    name: "โกโก้ปั่น",
+    eng: "Chocolate Smoothie",
+    price: 50,
+    category: "โกโก้",
+    image: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=700",
+    description: "โกโก้เข้มข้น หอมมัน กลมกล่อม"
+  },
+  {
+    id: 5,
+    name: "ชาเขียวปั่น",
+    eng: "Green Tea",
+    price: 50,
+    category: "ชา",
+    image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=700",
+    description: "ชาเขียวหอมละมุน ผสมนมสด"
+  },
+  {
+    id: 6,
+    name: "นมสดปั่น",
+    eng: "Fresh Milk",
+    price: 40,
+    category: "นมสด",
+    image: "https://images.unsplash.com/photo-1568909344668-6f14a07b56ea?w=700",
+    description: "นมสดหอมมัน รสชาติละมุน"
+  }
 ];
 
-const PRODUCTS: Product[] = [
-  { id: "straw", name: "สตรอว์เบอร์รีปั่น", price: 45, color: "#f48fb1", deco: "🍓", desc: "สตรอว์เบอร์รีสด ปั่นเนียนนุ่ม หอม หวาน อร่อย สดชื่น" },
-  { id: "mango", name: "มะม่วงปั่น", price: 45, color: "#ffb74d", deco: "🥭", desc: "มะม่วงสุกหวานฉ่ำ ปั่นเย็นชื่นใจ รสชาติเข้มข้น" },
-  { id: "choc", name: "ช็อกโกแลตปั่น", price: 50, color: "#8d6e63", deco: "🍫", desc: "ช็อกโกแลตเข้มข้น ปั่นนุ่ม หวานมันกำลังดี" },
-  { id: "matcha", name: "ชาเขียวปั่น", price: 50, color: "#aed581", deco: "🍃", desc: "ชาเขียวมัทฉะแท้ หอมละมุน ขมนิดๆ หวานหน่อยๆ" },
-  { id: "blue", name: "บลูเบอร์รีปั่น", price: 55, color: "#9fa8da", deco: "🫐", desc: "บลูเบอร์รีเปรี้ยวอมหวาน ปั่นเนียน สีสวย" },
-  { id: "orange", name: "ส้มปั่น", price: 40, color: "#ffcc80", deco: "🍊", desc: "ส้มสดคั้นปั่น วิตามินซีสูง สดชื่นรับวันใหม่" },
-];
+const categories = ["ทั้งหมด", "ผลไม้", "นมสด", "ชา", "โกโก้"];
+const sizes: Size[] = ["S", "M", "L"];
+const extra: Record<Size, number> = { S: 0, M: 5, L: 10 };
+const money = (n: number) => `฿${n.toLocaleString("th-TH")}`;
 
-const SLIDES = [
-  { l1: "ความสดชื่น", l2: "ที่คุณเลือกได้", bg: "linear-gradient(110deg,#f9b9cf,#ffe0b8 55%,#fff)", cups: ["#f48fb1", "#ffcc80", "#c5e1a5"] },
-  { l1: "ปั่นสดใหม่", l2: "ทุกแก้วทุกวัน", bg: "linear-gradient(110deg,#ffd7a8,#ffe9c7 55%,#fff)", cups: ["#ffb74d", "#ffcc80", "#f48fb1"] },
-  { l1: "หวานน้อย", l2: "สั่งได้ตามใจ", bg: "linear-gradient(110deg,#d7ecc0,#f2f8d8 55%,#fff)", cups: ["#aed581", "#c5e1a5", "#9fa8da"] },
-];
-
-const priceOf = (p: Product, size: string) =>
-  p.price + (SIZES.find((s) => s.key === size)?.add ?? 0);
-
-/* ================= small components ================= */
-function Cup({ color, size = 120 }: { color: string; size?: number }) {
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
-  return (
-    <svg
-      width={size}
-      height={size * 1.25}
-      viewBox="0 0 120 150"
-      style={{ filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))", flexShrink: 0 }}
-    >
-      <defs>
-        <linearGradient id={`g${uid}`} x1="0" x2="1">
-          <stop offset="0" stopColor={color} stopOpacity=".85" />
-          <stop offset=".5" stopColor={color} />
-          <stop offset="1" stopColor={color} stopOpacity=".8" />
-        </linearGradient>
-      </defs>
-      <line x1="68" y1="4" x2="62" y2="60" stroke="#4e342e" strokeWidth="5" strokeLinecap="round" />
-      <path d="M18 56 Q60 -6 102 56 Z" fill="#fff" fillOpacity=".55" stroke="#fff" strokeWidth="2" />
-      <path d="M16 56 H104 L94 140 Q60 150 26 140 Z" fill={`url(#g${uid})`} />
-      <rect x="12" y="52" width="96" height="9" rx="4" fill="#fff" fillOpacity=".8" />
-      <path d="M30 70 Q34 100 32 128" stroke="#fff" strokeOpacity=".5" strokeWidth="4" fill="none" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function TabBar({
-  active,
-  cartCount,
-  onTab,
-}: {
-  active: ScreenName;
-  cartCount: number;
-  onTab: (n: ScreenName) => void;
-}) {
-  const tabs: { name: ScreenName; icon: string; label: string }[] = [
-    { name: "home", icon: "🏠", label: "หน้าหลัก" },
-    { name: "menu", icon: "🧾", label: "เมนู" },
-    { name: "cart", icon: "🛍️", label: "คำสั่งซื้อ" },
-    { name: "profile", icon: "👤", label: "โปรไฟล์" },
-  ];
-  return (
-    <nav className="tabbar">
-      {tabs.map((t) => (
-        <button
-          key={t.name}
-          onClick={() => onTab(t.name)}
-          className={t.name === active ? "tab on" : "tab"}
-        >
-          <span className="ic">
-            {t.icon}
-            {t.name === "cart" && cartCount > 0 && <i className="badge">{cartCount}</i>}
-          </span>
-          <small>{t.label}</small>
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function TopBar({ left, center, right }: { left?: ReactNode; center: ReactNode; right?: ReactNode }) {
-  return (
-    <div className="topbar">
-      <div className="slot l">{left}</div>
-      <div className="center-title">{center}</div>
-      <div className="slot r">{right}</div>
-    </div>
-  );
-}
-
-/* ================= app ================= */
 export default function Page() {
-  const [stack, setStack] = useState<Screen[]>([{ name: "splash" }]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [favs, setFavs] = useState<string[]>([]);
-  const [size, setSize] = useState("S");
+  const [page, setPage] = useState<Page>("home");
+  const [category, setCategory] = useState("ทั้งหมด");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Drink>(drinks[0]);
+  const [size, setSize] = useState<Size>("M");
   const [qty, setQty] = useState(1);
-  const [slide, setSlide] = useState(0);
+
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const [checkout, setCheckout] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [customer, setCustomer] = useState("");
+  const [phone, setPhone] = useState("");
   const [toast, setToast] = useState("");
-  const [lastOrder, setLastOrder] = useState<Order | null>(null);
 
-  const cur = stack[stack.length - 1];
-  const go = (name: ScreenName, productId?: string) =>
-    setStack((s) => [...s, { name, productId }]);
-  const tab = (name: ScreenName) => setStack([{ name }]);
-  const back = () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 1600);
-  };
-
-  const openProduct = (id: string) => {
-    setSize("S");
-    setQty(1);
-    go("detail", id);
-  };
-
-  const addToCart = (productId: string, sz: string, q: number) => {
-    const key = `${productId}-${sz}`;
-    setCart((c) => {
-      const found = c.find((i) => i.key === key);
-      if (found) return c.map((i) => (i.key === key ? { ...i, qty: i.qty + q } : i));
-      return [...c, { key, productId, size: sz, qty: q }];
-    });
-  };
-
-  const changeQty = (key: string, d: number) =>
-    setCart((c) =>
-      c.flatMap((i) => {
-        if (i.key !== key) return [i];
-        const n = i.qty + d;
-        return n < 1 ? [] : [{ ...i, qty: n }];
-      })
-    );
-
-  const getP = (id: string) => PRODUCTS.find((p) => p.id === id) ?? PRODUCTS[0];
-  const count = cart.reduce((s, i) => s + i.qty, 0);
-  const total = cart.reduce((s, i) => s + priceOf(getP(i.productId), i.size) * i.qty, 0);
-
-  const checkout = () => {
-    if (cart.length === 0) return;
-    const order: Order = {
-      no: `PF${Math.floor(1000 + Math.random() * 9000)}`,
-      total,
-      count,
-      time: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
-    };
-    setOrders((o) => [order, ...o]);
-    setLastOrder(order);
-    setCart([]);
-    setStack([{ name: "success" }]);
-  };
-
-  // เลื่อนแบนเนอร์อัตโนมัติ
+  // โหลดข้อมูลที่เคยบันทึก
   useEffect(() => {
-    if (cur.name !== "home") return;
-    const t = setInterval(() => setSlide((s) => (s + 1) % SLIDES.length), 3500);
-    return () => clearInterval(t);
-  }, [cur.name]);
+    try {
+      const savedCart = localStorage.getItem("punfin-cart");
+      const savedFav = localStorage.getItem("punfin-favorites");
 
-  const showTabs = ["home", "menu", "cart", "profile"].includes(cur.name);
-  const product = getP(cur.productId ?? "straw");
+      if (savedCart) setCart(JSON.parse(savedCart));
+      if (savedFav) setFavorites(JSON.parse(savedFav));
+    } catch {
+      localStorage.removeItem("punfin-cart");
+      localStorage.removeItem("punfin-favorites");
+    }
+    setLoaded(true);
+  }, []);
+
+  // บันทึกข้อมูลลงเครื่อง
+  useEffect(() => {
+    if (!loaded) return;
+    localStorage.setItem("punfin-cart", JSON.stringify(cart));
+    localStorage.setItem("punfin-favorites", JSON.stringify(favorites));
+  }, [cart, favorites, loaded]);
+
+  const shown = useMemo(() => {
+    return drinks.filter((d) => {
+      const matchCategory =
+        category === "ทั้งหมด" || d.category === category;
+      const matchSearch =
+        `${d.name} ${d.eng}`.toLowerCase().includes(search.toLowerCase());
+      return matchCategory && matchSearch;
+    });
+  }, [category, search]);
+
+  const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
+
+  const total = cart.reduce(
+    (sum, item) =>
+      sum + (item.drink.price + extra[item.size]) * item.qty,
+    0
+  );
+
+  function notify(text: string) {
+    setToast(text);
+    window.setTimeout(() => setToast(""), 2500);
+  }
+
+  function openDrink(drink: Drink) {
+    setSelected(drink);
+    setSize("M");
+    setQty(1);
+    setPage("detail");
+  }
+
+  function toggleFavorite(id: number) {
+    setFavorites((old) =>
+      old.includes(id)
+        ? old.filter((x) => x !== id)
+        : [...old, id]
+    );
+    notify(
+      favorites.includes(id)
+        ? "นำออกจากเมนูโปรดแล้ว"
+        : "เพิ่มเมนูโปรดแล้ว ❤️"
+    );
+  }
+
+  function addCart() {
+    const id = `${selected.id}-${size}`;
+
+    setCart((old) => {
+      const found = old.find((item) => item.id === id);
+
+      if (found) {
+        return old.map((item) =>
+          item.id === id
+            ? { ...item, qty: item.qty + qty }
+            : item
+        );
+      }
+
+      return [
+        ...old,
+        { id, drink: selected, size, qty }
+      ];
+    });
+
+    setPage("cart");
+    notify("เพิ่มสินค้าในตะกร้าแล้ว 🛒");
+  }
+
+  function updateQty(id: string, amount: number) {
+    setCart((old) =>
+      old
+        .map((item) =>
+          item.id === id
+            ? { ...item, qty: item.qty + amount }
+            : item
+        )
+        .filter((item) => item.qty > 0)
+    );
+  }
+
+  function placeOrder() {
+    if (!customer.trim()) {
+      notify("กรุณากรอกชื่อผู้สั่งซื้อ");
+      return;
+    }
+
+    if (!/^0[0-9]{9}$/.test(phone)) {
+      notify("กรุณากรอกเบอร์โทรศัพท์ 10 หลัก");
+      return;
+    }
+
+    if (cart.length === 0) return;
+
+    setCart([]);
+    setCheckout(false);
+    setSuccess(true);
+  }
 
   return (
-    <main className="stage">
-      <style>{css}</style>
+    <main className="min-h-screen bg-[#fff0f5] p-3 text-[#593246] sm:p-8">
 
-      <div className="phone">
-        <div className={showTabs ? "body has-tab" : "body"} key={cur.name + (cur.productId ?? "")}>
-          {/* ============ SPLASH ============ */}
-          {cur.name === "splash" && (
-            <div className="splash">
-              <div className="splash-cup">
-                <span className="berry b1">🍓</span>
-                <span className="berry b2">🍓</span>
-                <span className="leaf l1">🍃</span>
-                <Cup color="#f48fb1" size={190} />
+      <div className="mx-auto max-w-[450px] overflow-hidden rounded-[32px] bg-white shadow-2xl">
+
+        {/* HEADER */}
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-pink-100 bg-white px-5 py-4">
+          <button onClick={() => setPage("home")}
+            className="text-2xl text-pink-600">
+            ☰
+          </button>
+
+          <button onClick={() => setPage("home")}
+            className="text-2xl font-black text-pink-600">
+            ปั่นฟินๆ 🥤
+          </button>
+
+          <button onClick={() => setPage("cart")}
+            className="relative text-2xl">
+            🛒
+            {cartCount > 0 && (
+              <span className="absolute -right-3 -top-2 rounded-full bg-pink-600 px-2 text-xs text-white">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </header>
+
+        {/* HOME */}
+        {page === "home" && (
+          <section className="min-h-[680px] p-4">
+
+            <div className="relative flex h-52 overflow-hidden rounded-[28px] bg-gradient-to-br from-pink-200 via-rose-100 to-orange-100 p-5">
+              <div className="relative z-10 flex w-3/5 flex-col justify-center">
+                <span className="w-fit rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-pink-600">
+                  FRESH EVERY DAY
+                </span>
+                <h2 className="mt-3 text-3xl font-black leading-tight text-pink-900">
+                  สดชื่นได้ทุกวัน
+                </h2>
+                <p className="mt-2 text-sm text-pink-800">
+                  ปั่นสดใหม่ ใส่ใจทุกแก้ว ♡
+                </p>
               </div>
-              <h1 className="logo">
-                ปั่นฟินๆ <span>🥤</span>
-              </h1>
-              <p className="slogan">“อร่อย สดชื่น ทุกแก้ว”</p>
-              <button className="cta" onClick={() => tab("home")}>
-                เริ่มสั่งเครื่องดื่ม <span>→</span>
-              </button>
-              <div className="wave" />
+              <img
+                src={drinks[0].image}
+                alt="สตรอว์เบอร์รีปั่น"
+                className="absolute right-0 h-full w-2/5 object-cover"
+              />
             </div>
-          )}
 
-          {/* ============ HOME ============ */}
-          {cur.name === "home" && (
-            <>
-              <TopBar
-                left={<span className="icon-btn">☰</span>}
-                center={<span className="logo-sm">ปั่นฟินๆ 🥤</span>}
-                right={
-                  <button className="icon-btn" onClick={() => tab("cart")} aria-label="ตะกร้า">
-                    🛒{count > 0 && <i className="badge">{count}</i>}
-                  </button>
-                }
+            <div className="mt-6">
+              <h2 className="text-xl font-black">ค้นหาเมนู 🔍</h2>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ค้นหาเครื่องดื่มที่ชอบ..."
+                className="mt-3 w-full rounded-full border border-pink-100 bg-pink-50 px-5 py-3 text-sm outline-none focus:border-pink-500"
               />
-              <div className="banner" style={{ background: SLIDES[slide].bg }}>
-                <div className="bottles">
-                  {SLIDES[slide].cups.map((c, i) => (
-                    <Cup key={i} color={c} size={56} />
-                  ))}
-                </div>
-                <div className="banner-text">
-                  <p>{SLIDES[slide].l1}</p>
-                  <p>{SLIDES[slide].l2}</p>
-                </div>
-              </div>
-              <div className="dots">
-                {SLIDES.map((_, d) => (
-                  <i key={d} onClick={() => setSlide(d)} className={d === slide ? "on" : ""} />
-                ))}
-              </div>
+            </div>
 
-              <div className="sec-head">
-                <b>🥤 เมนูแนะนำ</b>
-                <button className="link" onClick={() => tab("menu")}>
-                  ดูทั้งหมด ›
+            <div className="mt-5 flex gap-2 overflow-x-auto pb-2">
+              {categories.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCategory(c)}
+                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${
+                    category === c
+                      ? "bg-pink-600 text-white shadow-lg shadow-pink-200"
+                      : "bg-pink-50 text-pink-600 hover:bg-pink-100"
+                  }`}
+                >
+                  {c}
                 </button>
-              </div>
-              <div className="cards">
-                {PRODUCTS.slice(0, 4).map((m) => (
-                  <button className="card" key={m.id} onClick={() => openProduct(m.id)}>
-                    <div className="card-img">
-                      <Cup color={m.color} size={64} />
-                      <span className="deco">{m.deco}</span>
-                    </div>
-                    <div className="card-name">{m.name}</div>
-                    <div className="price-pill">฿{m.price}</div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+              ))}
+            </div>
 
-          {/* ============ MENU ============ */}
-          {cur.name === "menu" && (
-            <>
-              <TopBar center={<b>เมนูทั้งหมด</b>} right={
-                <button className="icon-btn" onClick={() => tab("cart")}>
-                  🛒{count > 0 && <i className="badge">{count}</i>}
-                </button>
-              } />
-              <div className="list">
-                {PRODUCTS.map((m) => (
-                  <div className="row-card" key={m.id}>
-                    <button className="thumb" onClick={() => openProduct(m.id)}>
-                      <Cup color={m.color} size={42} />
-                    </button>
-                    <button className="row-info" onClick={() => openProduct(m.id)}>
-                      <b>
-                        {m.deco} {m.name}
-                      </b>
-                      <small>เริ่มต้น ฿{m.price}</small>
-                    </button>
-                    <button
-                      className="plus"
-                      aria-label="เพิ่มลงตะกร้า"
-                      onClick={() => {
-                        addToCart(m.id, "S", 1);
-                        showToast(`เพิ่ม ${m.name} แล้ว`);
-                      }}
-                    >
-                      +
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+            <div className="mb-3 mt-5 flex justify-between">
+              <h2 className="text-lg font-black">เมนูแนะนำ 🥤</h2>
+              <span className="text-xs text-pink-400">
+                {shown.length} เมนู
+              </span>
+            </div>
 
-          {/* ============ DETAIL ============ */}
-          {cur.name === "detail" && (
-            <>
-              <TopBar
-                left={<button className="icon-btn" onClick={back}>‹</button>}
-                center={<b>รายละเอียดสินค้า</b>}
-                right={
-                  <button
-                    className="icon-btn"
-                    style={{ color: PINK }}
-                    onClick={() =>
-                      setFavs((f) =>
-                        f.includes(product.id) ? f.filter((x) => x !== product.id) : [...f, product.id]
-                      )
-                    }
-                  >
-                    {favs.includes(product.id) ? "♥" : "♡"}
-                  </button>
-                }
-              />
-              <div className="detail-hero">
-                <span className="berry b1">{product.deco}</span>
-                <span className="leaf l1">🍃</span>
-                <Cup color={product.color} size={150} />
+            {shown.length === 0 ? (
+              <div className="rounded-2xl bg-pink-50 p-8 text-center">
+                ไม่พบเมนูที่ค้นหา
               </div>
-              <div className="center">
-                <h3 className="d-title">{product.name}</h3>
-                <div className="big-price">฿{priceOf(product, size)}</div>
-                <p className="desc">{product.desc}</p>
-              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {shown.map((d) => (
+                  <article key={d.id}
+                    className="overflow-hidden rounded-[22px] border border-pink-100 bg-[#fff8fa] shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
 
-              <div className="label">🥤 ขนาดที่ต้องการ</div>
-              <div className="sizes">
-                {SIZES.map((s) => (
-                  <button
-                    key={s.key}
-                    onClick={() => setSize(s.key)}
-                    className={s.key === size ? "size on" : "size"}
-                  >
-                    {s.key === size && <i className="tick">✓</i>}
-                    <b>{s.key}</b>
-                    <small>{s.label}</small>
-                    <span>฿{priceOf(product, s.key)}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="qty-row">
-                <span>🛒 จำนวน</span>
-                <div className="stepper">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-                  <b>{qty}</b>
-                  <button onClick={() => setQty(qty + 1)}>+</button>
-                </div>
-              </div>
-
-              <button
-                className="cta add"
-                onClick={() => {
-                  addToCart(product.id, size, qty);
-                  showToast(`เพิ่ม ${product.name} ลงตะกร้าแล้ว`);
-                  setQty(1);
-                }}
-              >
-                🧺 เพิ่มลงตะกร้า · ฿{priceOf(product, size) * qty}
-              </button>
-            </>
-          )}
-
-          {/* ============ CART ============ */}
-          {cur.name === "cart" && (
-            <>
-              <TopBar
-                left={<button className="icon-btn" onClick={() => tab("home")}>‹</button>}
-                center={<b>ตะกร้าสินค้า</b>}
-                right={
-                  <button className="icon-btn" onClick={() => setCart([])} aria-label="ล้างตะกร้า">
-                    🗑
-                  </button>
-                }
-              />
-              <div className="list">
-                {cart.length === 0 && (
-                  <div className="empty">
-                    <div style={{ fontSize: 48 }}>🥤</div>
-                    <p>ยังไม่มีสินค้าในตะกร้า</p>
-                    <button className="ghost" onClick={() => tab("menu")}>
-                      ไปเลือกเมนู
-                    </button>
-                  </div>
-                )}
-                {cart.map((i) => {
-                  const p = getP(i.productId);
-                  const unit = priceOf(p, i.size);
-                  return (
-                    <div className="cart-item" key={i.key}>
-                      <div className="thumb">
-                        <Cup color={p.color} size={44} />
+                    <button onClick={() => openDrink(d)}
+                      className="w-full text-left">
+                      <img src={d.image} alt={d.name}
+                        className="h-32 w-full object-cover" />
+                      <div className="p-3">
+                        <h3 className="font-black">{d.name}</h3>
+                        <p className="mt-1 text-[10px] text-gray-400">
+                          {d.eng}
+                        </p>
+                        <p className="mt-2 font-black text-pink-600">
+                          {money(d.price)}
+                        </p>
                       </div>
-                      <div className="info">
-                        <b>{p.name}</b>
-                        <small>ขนาด {i.size}</small>
-                        <span className="unit">฿{unit}</span>
-                        <div className="row">
-                          <div className="stepper sm">
-                            <button onClick={() => changeQty(i.key, -1)}>−</button>
-                            <b>{i.qty}</b>
-                            <button onClick={() => changeQty(i.key, 1)}>+</button>
-                          </div>
-                          <span className="line-price">฿{unit * i.qty}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    </button>
 
-              {cart.length > 0 && (
-                <div className="checkout">
-                  <div className="total-row">
-                    <b>รวมทั้งหมด</b>
-                    <span className="total">฿{total}</span>
-                  </div>
-                  <button className="cta" onClick={checkout}>
-                    💳 สั่งซื้อเลย
-                  </button>
-                  <button className="ghost" onClick={() => tab("menu")}>
-                    เลือกเมนูเพิ่มเติม
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ============ PROFILE ============ */}
-          {cur.name === "profile" && (
-            <>
-              <TopBar center={<b>โปรไฟล์</b>} />
-              <div className="profile-head">
-                <div className="avatar">🙂</div>
-                <b>ลูกค้าปั่นฟินๆ</b>
-                <small>สมาชิกใหม่</small>
-              </div>
-              <div className="label">🧾 ประวัติการสั่งซื้อ</div>
-              <div className="list">
-                {orders.length === 0 && <p className="empty-text">ยังไม่มีประวัติการสั่งซื้อ</p>}
-                {orders.map((o) => (
-                  <div className="order" key={o.no}>
-                    <div>
-                      <b>#{o.no}</b>
-                      <small>
-                        {o.count} แก้ว · {o.time} น.
-                      </small>
-                    </div>
-                    <span className="line-price">฿{o.total}</span>
-                  </div>
-                ))}
-              </div>
-              {favs.length > 0 && (
-                <>
-                  <div className="label" style={{ marginTop: 14 }}>♥ เมนูที่ถูกใจ</div>
-                  <div className="chips">
-                    {favs.map((f) => (
-                      <button key={f} className="chip" onClick={() => openProduct(f)}>
-                        {getP(f).deco} {getP(f).name}
+                    <div className="flex items-center justify-between px-3 pb-3">
+                      <button
+                        onClick={() => toggleFavorite(d.id)}
+                        className="text-xl">
+                        {favorites.includes(d.id) ? "❤️" : "♡"}
                       </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          )}
+                      <button
+                        onClick={() => openDrink(d)}
+                        className="rounded-full bg-pink-600 px-3 py-2 text-xs font-bold text-white hover:bg-pink-700">
+                        เลือกเมนู +
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
-          {/* ============ SUCCESS ============ */}
-          {cur.name === "success" && lastOrder && (
-            <div className="success">
-              <div className="check">✓</div>
-              <h2>สั่งซื้อสำเร็จ!</h2>
-              <p>
-                หมายเลขคำสั่งซื้อ <b>#{lastOrder.no}</b>
-              </p>
-              <p>
-                {lastOrder.count} แก้ว · รวม <b style={{ color: PINK }}>฿{lastOrder.total}</b>
-              </p>
-              <p className="muted">ร้านกำลังปั่นให้คุณ รอสักครู่นะ 🥤</p>
-              <button className="cta" onClick={() => tab("home")}>
-                กลับหน้าหลัก
-              </button>
-              <button className="ghost" onClick={() => tab("profile")}>
-                ดูประวัติการสั่งซื้อ
+        {/* DETAIL */}
+        {page === "detail" && (
+          <section className="min-h-[680px] p-5">
+            <button onClick={() => setPage("home")}
+              className="mb-4 font-bold text-pink-600">
+              ← กลับหน้าหลัก
+            </button>
+
+            <img src={selected.image} alt={selected.name}
+              className="h-64 w-full rounded-[28px] object-cover" />
+
+            <div className="mt-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-black">{selected.name}</h2>
+                <p className="text-sm text-gray-400">{selected.eng}</p>
+              </div>
+              <button onClick={() => toggleFavorite(selected.id)}
+                className="text-3xl">
+                {favorites.includes(selected.id) ? "❤️" : "♡"}
               </button>
             </div>
-          )}
-        </div>
 
-        {showTabs && <TabBar active={cur.name} cartCount={count} onTab={tab} />}
-        {toast && <div className="toast">{toast}</div>}
+            <p className="mt-3 text-sm leading-6 text-gray-500">
+              {selected.description}
+            </p>
+
+            <h3 className="mb-3 mt-6 font-black">เลือกขนาดแก้ว</h3>
+
+            <div className="grid grid-cols-3 gap-3">
+              {sizes.map((s) => (
+                <button key={s}
+                  onClick={() => setSize(s)}
+                  className={`rounded-2xl border p-4 transition ${
+                    size === s
+                      ? "border-pink-500 bg-pink-100 text-pink-700"
+                      : "border-pink-100 hover:bg-pink-50"
+                  }`}>
+                  <b className="text-lg">{s}</b>
+                  <p className="mt-1 text-xs">
+                    {money(selected.price + extra[s])}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 flex items-center justify-between">
+              <b>จำนวนแก้ว</b>
+              <div className="flex items-center gap-5 rounded-full bg-pink-50 px-5 py-3">
+                <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
+                <b>{qty}</b>
+                <button onClick={() => setQty(qty + 1)}
+                  className="text-pink-600">＋</button>
+              </div>
+            </div>
+
+            <button onClick={addCart}
+              className="mt-8 w-full rounded-full bg-gradient-to-r from-pink-500 to-pink-700 p-4 font-black text-white shadow-lg shadow-pink-200 hover:scale-[1.02]">
+              🛒 เพิ่มลงตะกร้า · {money((selected.price + extra[size]) * qty)}
+            </button>
+          </section>
+        )}
+
+        {/* CART */}
+        {page === "cart" && (
+          <section className="min-h-[680px] p-5">
+            <h2 className="mb-5 text-xl font-black">🛒 ตะกร้าสินค้า</h2>
+
+            {cart.length === 0 ? (
+              <div className="rounded-[28px] bg-pink-50 p-10 text-center">
+                <div className="text-6xl">🛍️</div>
+                <h3 className="mt-4 font-black">ยังไม่มีสินค้า</h3>
+                <p className="mt-2 text-sm text-gray-400">
+                  เลือกเครื่องดื่มที่ชอบกันเลย
+                </p>
+                <button onClick={() => setPage("home")}
+                  className="mt-5 rounded-full bg-pink-600 px-6 py-3 font-bold text-white">
+                  เลือกเมนู
+                </button>
+              </div>
+            ) : (
+              <>
+                {cart.map((item) => (
+                  <article key={item.id}
+                    className="mb-4 flex gap-3 rounded-2xl bg-pink-50 p-3">
+                    <img src={item.drink.image}
+                      alt={item.drink.name}
+                      className="h-24 w-24 rounded-xl object-cover" />
+
+                    <div className="flex-1">
+                      <div className="flex justify-between gap-2">
+                        <b className="text-sm">{item.drink.name}</b>
+                        <button
+                          onClick={() => setCart(old => old.filter(x => x.id !== item.id))}
+                          className="text-xs text-red-400">
+                          ลบ
+                        </button>
+                      </div>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        ขนาด {item.size}
+                      </p>
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3 rounded-full bg-white px-3 py-1">
+                          <button onClick={() => updateQty(item.id, -1)}>−</button>
+                          <b>{item.qty}</b>
+                          <button onClick={() => updateQty(item.id, 1)}>＋</button>
+                        </div>
+                        <b className="text-sm text-pink-600">
+                          {money((item.drink.price + extra[item.size]) * item.qty)}
+                        </b>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+
+                <div className="rounded-2xl bg-[#fff4f7] p-5">
+                  <div className="flex justify-between text-sm">
+                    <span>จำนวนสินค้า</span>
+                    <b>{cartCount} แก้ว</b>
+                  </div>
+                  <div className="mt-4 flex justify-between border-t border-pink-200 pt-4">
+                    <b>ยอดรวมทั้งหมด</b>
+                    <b className="text-2xl text-pink-600">{money(total)}</b>
+                  </div>
+                </div>
+
+                <button onClick={() => setCheckout(true)}
+                  className="mt-5 w-full rounded-full bg-pink-600 p-4 font-black text-white shadow-lg shadow-pink-200">
+                  ยืนยันคำสั่งซื้อ →
+                </button>
+
+                <button onClick={() => setPage("home")}
+                  className="mt-3 w-full rounded-full border border-pink-300 p-3 font-bold text-pink-600">
+                  เลือกเมนูเพิ่มเติม
+                </button>
+              </>
+            )}
+          </section>
+        )}
+
+        {/* FAVORITES */}
+        {page === "favorite" && (
+          <section className="min-h-[680px] p-5">
+            <h2 className="mb-5 text-xl font-black">❤️ เมนูโปรด</h2>
+
+            {favorites.length === 0 ? (
+              <div className="rounded-2xl bg-pink-50 p-10 text-center">
+                <div className="text-5xl">♡</div>
+                <p className="mt-4 font-bold">ยังไม่มีเมนูโปรด</p>
+                <p className="mt-2 text-sm text-gray-400">
+                  กดหัวใจที่เมนูเพื่อบันทึกได้เลย
+                </p>
+                <button onClick={() => setPage("home")}
+                  className="mt-5 rounded-full bg-pink-600 px-5 py-3 text-white">
+                  เลือกเมนู
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {drinks.filter(d => favorites.includes(d.id)).map(d => (
+                  <article key={d.id} className="overflow-hidden rounded-2xl bg-pink-50">
+                    <button onClick={() => openDrink(d)} className="w-full text-left">
+                      <img src={d.image} alt={d.name}
+                        className="h-32 w-full object-cover" />
+                      <p className="p-3 font-bold">{d.name}</p>
+                    </button>
+                    <button onClick={() => toggleFavorite(d.id)}
+                      className="px-3 pb-3 text-sm text-pink-600">
+                      ❤️ นำออกจากรายการ
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* PROFILE */}
+        {page === "profile" && (
+          <section className="min-h-[680px] p-6 text-center">
+            <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-pink-100 text-5xl">
+              👤
+            </div>
+            <h2 className="mt-4 text-2xl font-black">สมาชิกปั่นฟินๆ</h2>
+            <p className="mt-2 text-sm text-gray-400">
+              ขอบคุณที่เลือกความสดชื่นจากเรา ♡
+            </p>
+
+            <div className="mt-8 rounded-3xl bg-pink-50 p-5 text-left">
+              <div className="flex justify-between">
+                <span>❤️ เมนูโปรด</span>
+                <b>{favorites.length} รายการ</b>
+              </div>
+              <div className="mt-4 flex justify-between">
+                <span>🛒 สินค้าในตะกร้า</span>
+                <b>{cartCount} แก้ว</b>
+              </div>
+            </div>
+
+            <button onClick={() => setPage("favorite")}
+              className="mt-5 w-full rounded-full border border-pink-500 p-3 font-bold text-pink-600">
+              ดูเมนูโปรด
+            </button>
+          </section>
+        )}
+
+        {/* BOTTOM NAV */}
+        <nav className="sticky bottom-0 z-20 grid grid-cols-4 border-t border-pink-100 bg-white py-3">
+          {[
+            { id: "home", icon: "⌂", label: "หน้าหลัก" },
+            { id: "favorite", icon: "♡", label: "เมนูโปรด" },
+            { id: "cart", icon: "🛒", label: "ตะกร้า" },
+            { id: "profile", icon: "♙", label: "โปรไฟล์" }
+          ].map((tab) => (
+            <button key={tab.id}
+              onClick={() => setPage(tab.id as Page)}
+              className={`flex flex-col items-center gap-1 text-xs ${
+                page === tab.id
+                  ? "font-black text-pink-600"
+                  : "text-gray-400"
+              }`}>
+              <span className="text-2xl">{tab.icon}</span>
+              {tab.label}
+              {tab.id === "cart" && cartCount > 0 && (
+                <span className="text-[10px]">({cartCount})</span>
+              )}
+            </button>
+          ))}
+        </nav>
       </div>
+
+      {/* CHECKOUT MODAL */}
+      {checkout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black">ยืนยันคำสั่งซื้อ</h2>
+              <button onClick={() => setCheckout(false)}
+                className="text-xl">✕</button>
+            </div>
+
+            <label className="mt-5 block text-sm font-bold">ชื่อผู้สั่งซื้อ</label>
+            <input value={customer}
+              onChange={(e) => setCustomer(e.target.value)}
+              placeholder="กรอกชื่อของคุณ"
+              className="mt-2 w-full rounded-xl border border-pink-200 p-3 outline-none focus:border-pink-500" />
+
+            <label className="mt-4 block text-sm font-bold">เบอร์โทรศัพท์</label>
+            <input value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              inputMode="numeric"
+              placeholder="เบอร์โทรศัพท์ 10 หลัก"
+              className="mt-2 w-full rounded-xl border border-pink-200 p-3 outline-none focus:border-pink-500" />
+
+            <div className="mt-5 flex justify-between border-t border-pink-100 pt-4">
+              <b>ยอดชำระ</b>
+              <b className="text-xl text-pink-600">{money(total)}</b>
+            </div>
+
+            <button onClick={placeOrder}
+              className="mt-5 w-full rounded-full bg-pink-600 p-4 font-bold text-white hover:bg-pink-700">
+              ยืนยันสั่งซื้อ
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SUCCESS MODAL */}
+      {success && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-[28px] bg-white p-8 text-center shadow-2xl">
+            <div className="text-6xl">🎉</div>
+            <h2 className="mt-4 text-2xl font-black text-pink-600">
+              สั่งซื้อสำเร็จ!
+            </h2>
+            <p className="mt-2 text-sm text-gray-500">
+              ขอบคุณที่อุดหนุนร้านปั่นฟินๆ
+            </p>
+            <button onClick={() => {
+              setSuccess(false);
+              setCustomer("");
+              setPhone("");
+              setPage("home");
+            }}
+              className="mt-6 w-full rounded-full bg-pink-600 p-3 font-bold text-white">
+              กลับหน้าหลัก
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST */}
+      {toast && (
+        <div role="status"
+          className="fixed bottom-6 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-[#593246] px-5 py-3 text-sm font-bold text-white shadow-xl">
+          {toast}
+          <button onClick={() => setToast("")} className="ml-3 text-pink-200">
+            ✕
+          </button>
+        </div>
+      )}
     </main>
   );
 }
-
-/* ================= styles ================= */
-const css = `
-@import url('https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&family=Prompt:wght@400;500;600;700&display=swap');
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0}
-button{font-family:inherit;color:inherit}
-.stage{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:16px;background:#fbe6ee;font-family:'Prompt',sans-serif;color:#4a1d33}
-.phone{position:relative;width:390px;max-width:100%;height:820px;max-height:calc(100dvh - 32px);border-radius:40px;border:2px solid #f3b6cb;overflow:hidden;
- background:linear-gradient(180deg,#fff 0%,#fff3f7 60%,#fde4ec 100%);box-shadow:0 12px 40px rgba(214,58,122,.25);display:flex;flex-direction:column}
-@media(max-width:480px){.stage{padding:0;background:#fff}.phone{width:100vw;height:100dvh;max-height:none;border-radius:0;border:0;box-shadow:none}}
-
-.body{flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;padding:18px 20px 16px;scrollbar-width:none;animation:fade .25s ease}
-.body::-webkit-scrollbar{display:none}
-.body.has-tab{padding-bottom:84px}
-@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:4px 0 12px;min-height:44px}
-.slot{width:44px;display:flex}
-.slot.r{justify-content:flex-end}
-.center-title{flex:1;text-align:center;font-size:16px}
-.icon-btn{position:relative;background:none;border:0;font-size:22px;cursor:pointer;padding:4px 6px;line-height:1}
-.logo-sm{font-family:'Mali',cursive;font-size:26px;color:${PINK};font-weight:700}
-.link{background:none;border:0;color:${PINK};font-size:12px;cursor:pointer}
-
-/* splash */
-.splash{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;margin:-18px -20px -16px;padding:50px 28px 0;
- background:radial-gradient(circle at 50% 30%,#ffe3ec,#f9bfd2)}
-.splash-cup{position:relative;margin-top:10px}
-.logo{font-family:'Mali',cursive;font-size:52px;font-weight:700;color:#7a1f48;margin:18px 0 0;line-height:1;text-shadow:2px 2px 0 #fff}
-.logo span{font-size:30px}
-.slogan{font-family:'Mali',cursive;font-weight:600;margin:12px 0 28px;font-size:18px}
-.wave{position:absolute;left:0;right:0;bottom:0;height:110px;background:#f7a8c2;border-radius:50% 50% 0 0/50px 50px 0 0;opacity:.6;z-index:0}
-.splash .cta{margin-top:auto;margin-bottom:60px}
-
-.cta{position:relative;z-index:1;width:100%;border:0;border-radius:999px;padding:15px 18px;color:#fff;font:600 15px 'Prompt',sans-serif;
- background:linear-gradient(90deg,${PINK},${PINK_DARK});display:flex;justify-content:center;align-items:center;gap:14px;cursor:pointer;box-shadow:0 6px 14px rgba(214,58,122,.35);transition:transform .1s}
-.cta:active{transform:scale(.97)}
-.ghost{width:100%;border:1.5px solid ${PINK};background:#fff;color:${PINK_DARK};border-radius:999px;padding:12px;font:500 14px 'Prompt';cursor:pointer;margin-top:8px}
-.berry{position:absolute;font-size:38px;z-index:2}
-.berry.b1{right:-22px;bottom:6px}
-.berry.b2{left:-22px;bottom:30px;font-size:30px}
-.leaf{position:absolute;font-size:28px}
-.leaf.l1{right:-30px;top:20px}
-
-/* home */
-.banner{border-radius:18px;height:124px;overflow:hidden;display:flex;align-items:center;justify-content:space-between;padding:0 12px;transition:background .4s}
-.bottles{display:flex;align-items:flex-end;margin-top:18px}
-.banner-text{font-family:'Mali',cursive;color:#7a1f48;font-weight:700;font-size:17px;text-align:right;line-height:1.35}
-.banner-text p{margin:0}
-.dots{display:flex;gap:6px;justify-content:center;margin:10px 0 8px}
-.dots i{width:7px;height:7px;border-radius:50%;background:#e7c0cf;cursor:pointer;transition:all .2s}
-.dots i.on{background:${PINK};width:18px;border-radius:99px}
-.sec-head{display:flex;justify-content:space-between;align-items:center;font-size:14px;margin:6px 0 10px}
-.cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.card{background:#fff;border-radius:18px;padding:8px 8px 12px;text-align:center;border:1px solid #fbd7e3;box-shadow:0 3px 8px rgba(214,58,122,.08);cursor:pointer;transition:transform .1s}
-.card:active{transform:scale(.97)}
-.card-img{position:relative;display:flex;justify-content:center;background:${PINK_LIGHT};border-radius:14px;padding-top:8px;height:104px;overflow:hidden}
-.deco{position:absolute;left:8px;bottom:4px;font-size:18px}
-.card-name{font-size:12px;margin:8px 0 5px;font-weight:500}
-.price-pill{display:inline-block;background:${PINK_LIGHT};color:${PINK};font-weight:700;font-size:12px;padding:2px 14px;border-radius:999px}
-
-.tabbar{position:absolute;left:0;right:0;bottom:0;background:#fff;display:flex;justify-content:space-around;padding:8px 6px 14px;border-top:1px solid #fbd7e3;z-index:5}
-.tab{background:none;border:0;display:flex;flex-direction:column;align-items:center;color:#8a6a78;font-size:10px;gap:2px;cursor:pointer;padding:2px 10px}
-.tab.on{color:${PINK};font-weight:600}
-.ic{position:relative;font-size:20px}
-.badge{position:absolute;top:-6px;right:-10px;background:${PINK};color:#fff;font-style:normal;font-size:10px;min-width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-family:'Prompt';font-weight:600;padding:0 4px}
-
-/* menu / lists */
-.list{display:flex;flex-direction:column;gap:10px}
-.row-card{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #fbd7e3;border-radius:16px;padding:8px}
-.thumb{width:62px;height:76px;border-radius:12px;background:${PINK_LIGHT};display:flex;align-items:center;justify-content:center;flex-shrink:0;border:0;cursor:pointer}
-.row-info{flex:1;background:none;border:0;text-align:left;display:flex;flex-direction:column;gap:2px;cursor:pointer;padding:0}
-.row-info b{font-size:14px;color:#7a1f48}
-.row-info small{font-size:12px;color:#8a6a78}
-.plus{width:34px;height:34px;border-radius:50%;border:0;background:${PINK};color:#fff;font-size:20px;cursor:pointer;line-height:1}
-.plus:active{transform:scale(.9)}
-
-/* detail */
-.detail-hero{position:relative;display:flex;justify-content:center;align-items:center;height:200px;margin:0 24px;background:radial-gradient(circle,#ffe0ea,#fff0f5 70%);border-radius:50%}
-.center{text-align:center}
-.d-title{font-size:22px;margin:10px 0 6px;color:#7a1f48}
-.big-price{display:inline-block;background:#f9c5d8;color:${PINK_DARK};font-weight:700;font-size:22px;padding:0 26px;border-radius:999px}
-.desc{font-size:12px;margin:8px 0 10px;line-height:1.6;color:#6b4254}
-.label{font-size:13px;font-weight:600;margin-bottom:8px;color:#7a1f48}
-.sizes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.size{position:relative;background:#fff;border:1.5px solid #f3c9d8;border-radius:14px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#4a1d33}
-.size b{font-size:18px}
-.size small{font-size:10px;color:#8a6a78}
-.size span{font-size:13px;font-weight:600}
-.size.on{background:#fde1ec;border-color:${PINK}}
-.tick{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:${PINK};color:#fff;font-style:normal;font-size:12px;display:flex;align-items:center;justify-content:center}
-.qty-row{display:flex;justify-content:space-between;align-items:center;margin:14px 0 12px;font-size:13px;font-weight:600;color:#7a1f48}
-.stepper{display:flex;align-items:center;gap:14px}
-.stepper button{width:30px;height:30px;border-radius:50%;border:0;background:#fbd7e3;color:${PINK};font-size:18px;cursor:pointer;line-height:1}
-.stepper button:last-child{background:${PINK};color:#fff}
-.stepper b{min-width:16px;text-align:center}
-.add{margin-top:auto}
-
-/* cart */
-.cart-item{display:flex;gap:12px;background:#fff;border:1px solid #fbd7e3;border-radius:16px;padding:8px}
-.info{flex:1;display:flex;flex-direction:column}
-.info b{font-size:13px;color:#7a1f48}
-.info small{font-size:11px;color:#8a6a78}
-.info .unit{font-size:12px;font-weight:700;color:#7a1f48}
-.row{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
-.stepper.sm{gap:8px}
-.stepper.sm button,.stepper.sm button:last-child{width:24px;height:24px;font-size:15px;background:#fbd7e3;color:${PINK}}
-.line-price{font-weight:700;font-size:15px;color:${PINK_DARK}}
-.checkout{margin-top:auto;padding-top:14px}
-.total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:15px}
-.total{font-size:24px;font-weight:700;color:${PINK}}
-.empty{text-align:center;color:#8a6a78;font-size:14px;margin-top:70px}
-.empty-text{text-align:center;color:#8a6a78;font-size:13px;margin:16px 0}
-
-/* profile */
-.profile-head{display:flex;flex-direction:column;align-items:center;gap:2px;margin:6px 0 18px}
-.avatar{width:76px;height:76px;border-radius:50%;background:${PINK_LIGHT};display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:6px}
-.profile-head small{color:#8a6a78}
-.order{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #fbd7e3;border-radius:14px;padding:10px 14px}
-.order div{display:flex;flex-direction:column}
-.order small{color:#8a6a78;font-size:11px}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{border:1px solid #f3c9d8;background:#fff;border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer}
-
-/* success */
-.success{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px}
-.success h2{margin:10px 0 4px;color:#7a1f48}
-.success p{margin:2px 0;font-size:14px}
-.muted{color:#8a6a78;margin:10px 0 24px !important;font-size:13px !important}
-.check{width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,${PINK},${PINK_DARK});color:#fff;font-size:46px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(214,58,122,.4);animation:pop .4s ease}
-@keyframes pop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
-
-.toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:#4a1d33;color:#fff;font-size:13px;padding:10px 18px;border-radius:999px;z-index:10;white-space:nowrap;animation:fade .2s ease;box-shadow:0 6px 16px rgba(0,0,0,.25)}
-`;
